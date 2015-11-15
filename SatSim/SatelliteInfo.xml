@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<satellite>
+    <name>Iridium23</name>
+    <shape>Rectangle</shape>
+    <dry_mass>1500</dry_mass>           <!-- kg -->
+    <fuel_mass>150</fuel_mass>          <!-- kg -->
+    <length dir="x">1</length>          <!-- m -->
+    <length dir="y">1</length>          <!-- m -->
+    <length dir="z">3</length>          <!-- m -->
+    <cog dir="x">0.5</cog>              <!-- m -->
+    <cog dir="y">0.5</cog>              <!-- m -->
+    <cog dir="z">1.5</cog>              <!-- m -->
+    <cop dir="x">0.5</cop>              <!-- m -->
+    <cop dir="y">0.5</cop>              <!-- m -->
+    <cop dir="z">1.5</cop>              <!-- m -->
+    <moi dir="xx">1375</moi>            <!-- kg m^2 -->
+    <moi dir="xy">0</moi>               <!-- kg m^2 -->
+    <moi dir="xz">0</moi>               <!-- kg m^2 -->
+    <moi dir="yx">0</moi>               <!-- kg m^2 -->
+    <moi dir="yy">1375</moi>            <!-- kg m^2 -->
+    <moi dir="yz">0</moi>               <!-- kg m^2 -->
+    <moi dir="zx">0</moi>               <!-- kg m^2 -->
+    <moi dir="zy">0</moi>               <!-- kg m^2 -->
+    <moi dir="zz">275</moi>             <!-- kg m^2 -->
+    <drag_area dir="x">3</drag_area>    <!-- m^2 -->
+    <drag_area dir="y">3</drag_area>    <!-- m^2 -->
+    <drag_area dir="z">1</drag_area>    <!-- m^2 -->
+    <drag_coeff>1</drag_coeff>
+    <solar_area dir="x">3</solar_area>  <!-- m^2 -->
+    <solar_area dir="y">3</solar_area>  <!-- m^2 -->
+    <solar_area dir="z">1</solar_area>  <!-- m^2 -->
+    <solar_coeff>1.5</solar_coeff>
+    <rad_area dir="x">3</rad_area>      <!-- m^2 -->
+    <rad_area dir="y">3</rad_area>      <!-- m^2 -->
+    <rad_area dir="z">1</rad_area>      <!-- m^2 -->
+    <rad_coeff>1.5</rad_coeff>
+</satellite>
