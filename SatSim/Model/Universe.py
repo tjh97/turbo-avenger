@@ -184,7 +184,7 @@ class Universe(object):
 
 class Gravity(afm.AbstractForceModel):
 
-    __MODEL_ORDER_N = 64
+    __MODEL_ORDER_N = 10
     __COEFFICIENTS = dict()
     __C = np.zeros((__MODEL_ORDER_N+1, __MODEL_ORDER_N+1))
     __S = np.zeros((__MODEL_ORDER_N+1, __MODEL_ORDER_N+1))
@@ -201,9 +201,14 @@ class Gravity(afm.AbstractForceModel):
         :return: Force vector in ECI
         """
 
-        ecef = conv.eci_to_ecef(t, r_eci)
-        f_ecef = Gravity.calculate_force(ecef[0])
-        return conv.ecef_to_eci(t, f_ecef)[0]
+        r_norm = r_eci.norm()
+        r_norm3 = r_norm**3
+
+        return -Universe.MU/r_norm3*r_eci
+
+        # ecef = conv.eci_to_ecef(t, r_eci)
+        # f_ecef = Gravity.calculate_force(ecef[0])
+        # return conv.ecef_to_eci(t, f_ecef)[0]
 
     @classmethod
     def import_coefficients(cls, filename):
@@ -267,9 +272,12 @@ class Gravity(afm.AbstractForceModel):
         """
 
         r, theta, phi = conv.xyz_to_sph(r_ecef)
-        f_ecef = conv.sph_to_xyz(cls._calculate_radial_force(r, phi, theta),
-                                 cls._calculate_theta_force(r, phi, theta),
-                                 cls._calculate_phi_force(r, phi, theta))
+
+        f_r = cls._calculate_radial_force(r, phi, theta)
+        f_t = cls._calculate_theta_force(r, phi, theta)
+        f_p = cls._calculate_phi_force(r, phi, theta)
+
+        f_ecef = conv.sph_to_xyz_dcm(theta, phi) * vt.Vector([f_r, f_t, f_p])
         return f_ecef
 
     @classmethod
@@ -280,15 +288,6 @@ class Gravity(afm.AbstractForceModel):
         R = Universe.RADIUS_OF_EARTH
         P, P_prime = sp.lpmn(cls.__MODEL_ORDER_N, cls.__MODEL_ORDER_N, sin(theta))
 
-        zonal = 0
-        # for n in range(2, cls.__MODEL_ORDER_N):
-        #     J_tilde = -1/(Universe.MU*R**n)
-        #     P = sp.lpmv(0, n, sin(theta))
-        #     den = (r/R)**n
-        #
-        #     zonal += (n+1)*(J_tilde*P)/den
-
-        # zonal = 0
         tess = 0
         for n in range(2, cls.__MODEL_ORDER_N):
             for m in range(1, n):
@@ -305,7 +304,7 @@ class Gravity(afm.AbstractForceModel):
                 # tess += (n+1)*P*(C_nm*cos(m*phi) + S_nm*sin(m*phi))/r**(n+2)
         # tess = 0
 
-        return -(Universe.MU**2/r**2)*(1/Universe.MU - zonal - tess)
+        return -(Universe.MU/r**2)  # *(1/Universe.MU - tess)
 
     @classmethod
     def _calculate_theta_force(cls, r, phi, theta):
@@ -325,7 +324,7 @@ class Gravity(afm.AbstractForceModel):
 
                 tess += top/den
 
-        return tess
+        return tess if not isnan(tess) else 0.0
         # return np.dot(np.ones((1, cls.__MODEL_ORDER_N+1)), top_array) * np.matrix([[r ** n+2 for n in range(cls.__MODEL_ORDER_N+1)]]).T
 
     @classmethod

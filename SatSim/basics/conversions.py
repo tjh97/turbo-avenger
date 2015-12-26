@@ -34,10 +34,16 @@ def xyz_to_sph(v):
     """
 
     r = v.norm()
-    theta = math.acos(v.z()/r)
-    phi = math.atan2(v.y(), v.x())
+    theta = math.acos(v.z/r)
+    phi = math.atan2(v.y, v.x)
 
     return r, theta, phi
+
+
+def sph_to_xyz_dcm(th, phi):
+    return vt.Matrix([[math.sin(th)*math.cos(phi), math.cos(th)*math.cos(phi), -math.sin(phi)],
+                      [math.sin(th)*math.sin(phi), math.cos(th)*math.sin(phi), math.cos(phi)],
+                      [math.cos(th), -math.sin(th), 0.0]])
 
 
 def time_to_mst(time):
@@ -185,3 +191,110 @@ def eci_to_ecef(time, r_eci, v_eci=None, a_eci=None):
     a_ecef = t*a_eci + 2*t_dot*v_eci + t_ddot*r_eci if a_eci else None
 
     return r_ecef, v_ecef, a_ecef
+
+
+def rv_to_oe(r_eci, v_eci, mu):
+    """Convert ECI position/velocity state vectors to orbital elements
+
+    :param vt.Vector r_eci:
+    :param vt.Vector v_eci:
+    :param float mu:
+    :rtype: (float, float, float, float, float, float)
+    :return: a, e, i, om, w, v
+    """
+
+    # Calculate some initial constants
+    r2 = r_eci.norm2()
+    r = math.sqrt(r2)
+    v2 = v_eci.norm2()
+    v = math.sqrt(v2)
+    rdotv = r_eci*v_eci
+
+    # Calculate angular momentum
+    h_eci = r_eci.cross(v_eci)
+    h2 = h_eci.norm2()
+    h = math.sqrt(h2)
+
+    # Calculate node vector
+    n_eci = vt.Vector([0, 0, 1]).cross(h_eci)
+    n = n_eci.norm()
+    n_unit = n_eci/n
+
+    # Calculate eccentricity vector
+    e_eci = ((v2 - mu/r)*r_eci - rdotv*v_eci) / mu
+    e2 = e_eci.norm2()
+    e = math.sqrt(e2)
+    e_unit = e_eci/e
+
+    # Calculate mechanical energy
+    E = v2/2 - mu/r
+
+    # Calculate semi-major axis and latus rectum
+    if e != 1.0:
+        a = -mu/(2*E)
+        p = a*(1 - e2)
+    else:
+        p = h2/mu
+        a = float('inf')
+
+    # Calculate inclination
+    i = math.acos(h_eci.z/h)
+
+    # Calculate the longitude of ascending node
+    om = math.acos(n_unit.x)
+
+    # Calculate the argument of periapsis
+    w = math.acos(n_unit*e_unit)
+    if e_unit < 0.0:
+        w = 360.0 - w
+
+    # Calculate the true anomaly
+    v = math.acos((e_unit*r_eci)/r)
+    if rdotv < 0.0:
+        v = 360.0 - v
+
+    return a, e, i, om, w, v
+
+
+def oe2rv(a, e, i, om, w, v, mu):
+    """
+
+    :param float a:
+    :param float e:
+    :param float i:
+    :param float om:
+    :param float w:
+    :param float v:
+    :rtype: (vt.Vector, vt.Vector)
+    :return: postion , velocity vectors in ECI
+    """
+
+    e2 = e**2
+    p = a*(1.0 - e2)
+    com = math.cos(om)
+    som = math.sin(om)
+    cin = math.cos(i)
+    sin = math.sin(i)
+    cwv = math.cos(w + v)
+    swv = math.sin(w + v)
+    snu = math.sin(v)
+
+    # Comput the radius
+    r = p/(1 + e*math.cos(v))
+
+    # Compute angular momentum
+    h = math.sqrt(mu*p)
+
+    # Compute position vector
+    r_eci = r*vt.Vector([com*cwv - som*swv*cin,
+                         som*cwv + com*swv*cin,
+                         sin*swv])
+
+    # Compute the velocity vector
+    temp1 = r_eci*(h*e/(r*p))*snu
+    temp2 = (h/r)*vt.Vector([-com*swv - som*cwv*cin,
+                             -som*swv + com*cwv*cin,
+                             +sin*cwv])
+    v_eci = temp1 + temp2
+
+    return r_eci, v_eci

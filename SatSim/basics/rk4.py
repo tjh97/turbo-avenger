@@ -1,9 +1,9 @@
-def rk4(y, dydx, x, h, f):
+def rk4(y, dydt, t, h, f):
     """
 
     :param y:
-    :param dydx:
-    :param x:
+    :param dydt:
+    :param t:
     :param h:
     :param f:
     :return:
@@ -11,9 +11,9 @@ def rk4(y, dydx, x, h, f):
 
     hh = h*0.5
     h6 = h/6.0
-    xh = x+hh
+    xh = t+hh
 
-    yt = y + hh*dydx
+    yt = y + hh*dydt
     dyt = f(xh, yt)
 
     yt = y + hh*dyt
@@ -21,9 +21,9 @@ def rk4(y, dydx, x, h, f):
 
     yt = y + h*dym
     dym += dyt
-    dyt = f(x+h, yt)
+    dyt = f(t+h, yt)
 
-    return y + h6*(dydx + dyt + 2.0*dym)
+    return y + h6*(dydt + dyt + 2.0*dym)
 
 
 def rk4_sample():

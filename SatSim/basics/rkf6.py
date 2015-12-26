@@ -29,8 +29,8 @@ class RKF6(object):
         :param vector_types.Vector r_init:
         :param vector_types.Vector v_init:
         :param dt.datetime t:
-        :rtype: vector_types.Vector, vector_types.Vector
-        :return: r_new, v_new
+        :rtype: vector_types.Vector, vector_types.Vector, dt.datetime
+        :return: r_new, v_new, t_new
         """
 
         h = self.h
@@ -50,7 +50,7 @@ class RKF6(object):
         k42 = h_sec*f(r_init + 1932.0/2197*k11 - 7200.0/2197*k21 + 7296.0/2197*k31, t + h*12/13)
 
         k51 = h_sec*(v_init + 439.0/216*k12 - 8.0*k22 + 3680.0/513*k32 - 845.0/4104*k42)
-        k52 = h_sec*f(r_init + 439.0/216*k11 - 8.0*k21 + 3680.0/513*k31 - 845.0/4104*k41, t + h*23/24)
+        k52 = h_sec*f(r_init + 439.0/216*k11 - 8.0*k21 + 3680.0/513*k31 - 845.0/4104*k41, t + h)
 
         k61 = h_sec*(v_init - 8.0/27*k12 + 2.0*k22 - 3544.0/2565*k32 + 1859.0/4104*k42 - 11.0/40*k52)
         k62 = h_sec*f(r_init - 8.0/27*k11 + 2.0*k21 - 3544.0/2565*k31 + 1859.0/4104*k41 - 11.0/40*k51, t + h/2)
@@ -68,15 +68,16 @@ class RKF6(object):
         delta = 0.84 * (self.eps/norm)**0.25
 
         # Adapt step size
-        # if delta <= 0.1:
-        #     self.h /= 10
-        # elif delta >= 4.0:
-        #     self.h *= 4
-        # elif 1.0 < delta < 4.0:
-        #     self.h = dt.timedelta(seconds=(h_sec*delta))
+        if delta <= 0.1:
+            self.h /= 10
+        elif delta >= 4.0:
+            self.h *= 4
+        elif 1.0 < delta < 4.0:
+            self.h = dt.timedelta(seconds=(h_sec*delta))
 
         # Accept or reject the new step value
-        # if norm <= self.eps:
-        return r_new, v_new
-        # else:
-        #     return self.step(r_init, v_init, t)
+        if self.eps * 0.1 < norm <= self.eps:
+            return r_new, v_new, t+self.h
+        else:
+            self.h = dt.timedelta(seconds=(h_sec*delta))
+            return self.step(r_init, v_init, t)
