@@ -1,37 +1,38 @@
-'''
+"""
 Created on Apr 25, 2015
 
 @author: tjh97
-'''
+"""
+import AbstractObjectModel
 import Universe
 import numpy as np
 import datetime as dt
 import matplotlib.pyplot as plt
+import xml.etree.cElementTree as et
 from mpl_toolkits.mplot3d import Axes3D
-# from Simulator.Simulator import Simulator
-from basics import space_types, vector_types
-from math import sqrt, sin, cos, acos, pi
-# from jinja2.nodes import Pos
+
+from basics import space_types, vector_types, dop853
+from math import sqrt, sin, cos
 
 
-class SatModel(object):
+class SatModel(AbstractObjectModel.AbstractObjectModel):
+    """Models the satellite.
+
+
     """
 
+    force_model = Universe.Gravity()
 
-    """
-
-
-    def __init__(self, time_init, mass_prop, pos_init, vel_init, acc_init, att_init, ang_vel_init):
+    def __init__(self, time_init, mass_prop, pos_init, vel_init, att_init, ang_vel_init):
         """
 
 
-        :param time_init:
+        :param dt. datetime time_init:
         :param mass_prop:
-        :param pos_init:
-        :param vel_init:
-        :param acc_init:
-        :param att_init:
-        :param ang_vel_init:
+        :param vt.Vector pos_init:
+        :param vt.Vector vel_init:
+        :param vt.Vector att_init:
+        :param vt.Vector ang_vel_init:
         :return:
         """
         self.time = time_init
@@ -42,33 +43,91 @@ class SatModel(object):
         self.w = ang_vel_init
         self.p = pos_init
         self.v = vel_init
-        self.a = acc_init
+
+        self._ode_orbit = dop853.Dop853(SatModel.__orbit_force_model, [self.p.x, self.p.y, self.p.z,
+                                                                       self.v.x, self.v.y, self.v.z],
+                                        self.time, params=time_init)
         
     def update(self, time):
         delta_time = time - self.time
         self.att.update(delta_time, self.w)
+        self.__update_orbit(time)
         self.time = time
 
     def __str__(self):
-        time_str = 'Time: %s' %self.time.ctime()
-        att_str  = 'Att: %s' %self.att
-        angv_str = 'AngV: %s' %self.w
+        time_str = 'Time: %s' % self.time.ctime()
+        att_str  = 'Att: %s' % self.att
+        angv_str = 'AngV: %s' % self.w
+        orbit_str = 'Orbit: %s, %s' % (self.p, self.v)
         
-        return '\n'.join([time_str,att_str,angv_str])
+        return ' '.join([time_str, att_str, angv_str, orbit_str])
+
+    def __update_orbit(self, time):
+        self.p, self.v = self._ode_orbit.step(time)
+
+    @staticmethod
+    def __orbit_force_model(t, y, time_init):
+        x, y, z, v_x, v_y, v_z = y
+        x_dot, y_dot, z_dot = v_x, v_y, v_z
+        v_dot = SatModel.force_model.force(vector_types.Vector(x, y, z), time_init + dt.timedelta(seconds=t))
+
+        return [x_dot, y_dot, z_dot, v_dot.x, v_dot.y, v_dot.z]
+
+    @classmethod
+    def import_sat(cls, filename):
+        single_items = ["name", "shape", "dry_mass", "fuel_mass", "drag_coeff", "rad_coeff"]
+        vector_items = ["length", "cog", "cop", "drag_area", "solar_area", "rad_area"]
+        matrix_items = ["moi"]
+        params = {}
+
+        try:
+            tree = et.parse(filename)
+        except IOError:
+            print("Unable to open satellite file.")
+            return
+        except et.ParseError:
+            print("Invalid XML file.")
+            return
+        root = tree.getroot()
+
+        # Single items are defined in text
+        for item in single_items:
+            value = root.find(item).text
+            try:
+                params[item] = float(value)
+            except ValueError:
+                params[item] = value
+
+        # Vector items are defined in attributes x, y, and z
+        attributes = ['x', 'y', 'z']
+        for item in vector_items:
+            node = root.find(item)
+            value = [float(node.attrib.get(a, 0)) for a in attributes]
+            params[item] = vector_types.Vector(value)
+
+        # Matrix items are defined in attributes xx, xy, xz, yx, yy, yz, zx, zy, zz
+        attributes = ['xx', 'xy', 'xz',
+                      'yx', 'yy', 'yz',
+                      'zx', 'zy', 'zz']
+        for item in matrix_items:
+            node = root.find(item)
+            value = [float(node.attrib.get(a, 0)) for a in attributes]
+            params[item] = vector_types.Matrix(value)
+
+        return SatModel(params)
 
         
-class Attitude(SatModel):
-    '''
+class Attitude(object):
+    """
     classdocs
-    '''
-    
-    
+    """
+
     def __init__(self, J2000_init):
         self.att_init = J2000_init   # Direction of +z-axis in J2000
-        self.q = space_types.Quaternion([1,0,0,0])  # Initialize the quaternion to 1,0,0,0
+        self.q = space_types.Quaternion([1, 0, 0, 0])  # Initialize the quaternion to 1,0,0,0
         
     def update(self, delta_time, w):
-        quat = [0, 0, 0, 0]   # Quaternion in form (r, v)
+        quat = [1, 0, 0, 0]   # Quaternion in form (r, v)
         
         x = w[0] * dt.timedelta.total_seconds(delta_time)
         y = w[1] * dt.timedelta.total_seconds(delta_time)
@@ -87,74 +146,6 @@ class Attitude(SatModel):
     
     def __str__(self):
         return str(self.get_att_vec())
-        
-
-class Forces(SatModel):
-    '''
-    classdocs
-    '''
-    
-    
-    def __init__(self, params):
-        pass
-    
-    
-class Orbit(SatModel):
-    '''
-    classdocs
-    '''
-    
-    
-    def __init__(self, pos, vel):
-        '''
-        Constructor
-        '''
-        self.r = pos
-        self.v = vel
-        
-        self.a, self.e, self.i, self.raan, self.w, self.nu = self.__rv2oe()
-        
-    
-    def update(self, pos, vel):
-        self.r = pos
-        self.v = vel
-        
-        self.a, self.e, self.i, self.raan, self.w, self.nu = self.__rv2oe()
-    
-    def __rv2oe(self):
-        h = np.cross(self.r.T, self.v.T).T
-        n = np.cross(np.array([0,0,1]), h.T)
-        n_norm = np.linalg.norm(n)
-        
-        mu = Universe.Universe.MU
-        r = self.r
-        v = self.v
-        v2 = v.T.dot(v)
-        r_norm = np.linalg.norm(r)
-        
-        e = ( (v2 - mu/r_norm )*r - ( r.T.dot(v) )*v ) / mu
-        e_norm = np.linalg.norm(e)
-        
-        E = v2/2 - mu/r_norm
-        
-        if e_norm != 1:
-            a = mu/(2*E)
-            p = a*(1-e_norm**2)
-        else:
-            p = h.T.dot(h)/mu
-            a = np.inf
-        
-        i    = acos( h[2]/np.linalg.norm(h) )
-        raan = acos( n[0]/np.linalg.norm(n) )
-        aop  = acos( n.T.dot(r)/(n_norm*e_norm) )
-        t_an = acos( e.T.dot(r)/(e_norm*r_norm) )
-        
-        raan = 2*pi - raan if n[1] < 0 else raan
-        aop  = 2*pi - aop  if e[2] < 0 else aop
-        t_an = 2*pi - t_an if r.T.dot(v) < 0 else t_an
-    
-        return a, e_norm, i, raan, aop, t_an
-    
 
 
 if __name__ == '__main__':
@@ -170,6 +161,11 @@ if __name__ == '__main__':
     x_plt = [x_plt]
     y_plt = [y_plt]
     z_plt = [z_plt]
+
+    x_pos, y_pos, z_pos = pos_init.x, pos_init.y, pos_init.z
+    x_pos = list(x_pos)
+    y_pos = list(y_pos)
+    z_pos = list(z_pos)
     
     for i in range(1000):
         satmodel.update(dt.timedelta(0,1))
@@ -179,11 +175,18 @@ if __name__ == '__main__':
         x_plt = np.append(x_plt, x)
         y_plt = np.append(y_plt, y)
         z_plt = np.append(z_plt, z)
-    
+
+        x_pos = np.append(x_pos, satmodel.p.x)
+        y_pos = np.append(y_pos, satmodel.p.y)
+        z_pos = np.append(z_pos, satmodel.p.z)
         
-    fig = plt.figure()
-    ax = fig.gca(projection='3d')
-    ax.plot(x_plt,y_plt,z_plt,label='Attitude')
+    plt.figure(1)
+    plt.subplot(111)
+    plt.gca(projection='3d')
+    plt.plot(x_plt, y_plt, z_plt, label='Attitude')
+    
+    plt.figure(2)
+    plt.subplot(111)
+    plt.gca(projections='3d')
+    plt.plot(x_pos, y_pos, z_pos, label='Orbit')
     plt.show()
-    
-    

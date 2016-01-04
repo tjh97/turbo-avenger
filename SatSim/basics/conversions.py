@@ -1,12 +1,13 @@
-'''
+"""
 Created on Oct 26, 2015
 
 @author: tjh97
-'''
+"""
 
 import datetime as dt
 import math
 import basics.vector_types as vt
+import basics.constants as constant
 
 
 def sph_to_xyz(r, theta, phi):
@@ -193,7 +194,7 @@ def eci_to_ecef(time, r_eci, v_eci=None, a_eci=None):
     return r_ecef, v_ecef, a_ecef
 
 
-def rv_to_oe(r_eci, v_eci, mu):
+def rv_to_oe(r_eci, v_eci, mu=constant.MU):
     """Convert ECI position/velocity state vectors to orbital elements
 
     :param vt.Vector r_eci:
@@ -256,17 +257,18 @@ def rv_to_oe(r_eci, v_eci, mu):
     return a, e, i, om, w, v
 
 
-def oe2rv(a, e, i, om, w, v, mu):
+def oe2rv(a, e, i, om, w, v, mu=constant.MU):
     """
 
-    :param float a:
-    :param float e:
-    :param float i:
-    :param float om:
-    :param float w:
-    :param float v:
+    :param float a: Semi-major axis
+    :param float e: Eccentricity
+    :param float i: Inclination
+    :param float om: Longitude of ascending node
+    :param float w: Argument of periapsis
+    :param float v: True anomaly
+    :param float mu: Earth gravitation parameter. Defaults to Earth in km^3/s^2
     :rtype: (vt.Vector, vt.Vector)
-    :return: postion , velocity vectors in ECI
+    :return: position , velocity vectors in ECI
     """
 
     e2 = e**2

@@ -77,9 +77,24 @@ class Quaternion(vt.Vector):
         r3 = [2*(x*z - w*y), 2*(y*z - w*x), 1 - 2*(x**2 + y**2)]
         
         return vt.Matrix([r1, r2, r3])
-    
+
+    def euler(self):
+        """Returns 3-2-1 euler angles from quaternion.
+
+        :rtype: (float, float, float)
+        :return: Roll, pitch, yaw in radians
+        """
+
+        roll = math.atan2(2*(self.w*self.x + self.y*self.z),
+                          1 - 2*(self.x**2 + self.y**2))
+        pitch = math.asin(2*(self.w*self.y - self.z*self.x))
+        yaw = math.atan2(2*(self.w*self.z + self.x*self.y),
+                         1 - 2*(self.y**2 + self.z**2))
+
+        return roll, pitch, yaw
+
     def __add__(self, other):
-        return Quaternion(self.q + other.q)
+        return Quaternion(self.value + other.value)
     
     def __mul__(self, other):
         self.mkunit()
@@ -113,13 +128,12 @@ class Quaternion(vt.Vector):
         z_o = self[3]
         
         self.value = np.matrix([w_s*w_o - x_s*x_o - y_s*y_o - z_s*z_o,
-                            w_s*x_o + x_s*w_o + y_s*z_o - z_s*y_o,
-                            w_s*y_o - x_s*z_o + y_s*w_o + z_s*x_o,
-                            w_s*z_o + x_s*y_o - y_s*x_o + z_s*w_o]).T
+                                w_s*x_o + x_s*w_o + y_s*z_o - z_s*y_o,
+                                w_s*y_o - x_s*z_o + y_s*w_o + z_s*x_o,
+                                w_s*z_o + x_s*y_o - y_s*x_o + z_s*w_o]).T
          
         return self
-        
-        
+
     @staticmethod
     def rot2quat(rot):
         """
@@ -175,7 +189,7 @@ class Quaternion(vt.Vector):
         return q
 
     @staticmethod
-    def makeQ(ax, ang):
+    def make_quat(ax, ang):
         """
 
         :param vt.Vector axis: Axis of the rotation.
@@ -196,3 +210,30 @@ class Quaternion(vt.Vector):
         axis *= sangle
 
         return Quaternion([cangle, axis.x, axis.y, axis.z])
+
+    @staticmethod
+    def euler2quat(roll, pitch, yaw):
+        """Creates a quaternion assuming a 3-2-1 euler angle sequence.
+
+        :param float roll: Roll angle in radians
+        :param float pitch: Pitch angle in radians
+        :param float yaw: Yaw angle in radians
+        :rtype: Quaternion
+        :return: Quaternion representing the euler angles.
+        """
+
+        cr = math.cos(roll/2.0)
+        sr = math.sin(roll/2.0)
+
+        cp = math.cos(pitch/2.0)
+        sp = math.sin(pitch/2.0)
+
+        cy = math.cos(yaw/2.0)
+        sy = math.sin(yaw/2.0)
+
+        q0 = cr*cp*cy + sr*sp*sy
+        q1 = sr*cp*cy - cr*sp*sy
+        q2 = cr*sp*cy + sr*cp*sy
+        q3 = cr*cp*sy - sr*sp*cy
+
+        return Quaternion([q0, q1, q2, q3])

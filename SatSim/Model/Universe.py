@@ -8,11 +8,15 @@ Created on Apr 21, 2015
 import datetime as dt
 from math import cos, sin, pi, sqrt, isnan
 from docutils.nodes import math
+import os
 import numpy as np
 import scipy.special as sp
 import basics.vector_types as vt
 import basics.conversions as conv
-import SatModel
+import basics.constants as constant
+
+import SunModel
+import MoonModel
 import AbstractForceModel as afm
 
 
@@ -24,21 +28,21 @@ class Universe(object):
     # -------------------
     #  Public Constants
     # -------------------
-    MU = 398600.4418                # km^3/s^2
-    UNIVERSE_TIME_STEP = 0.01       # sec
-    RADIUS_OF_EARTH = 6378.1363     # km
+    # MU = 398600.4418                # km^3/s^2
+    # UNIVERSE_TIME_STEP = 0.01       # sec
+    # RADIUS_OF_EARTH = 6378.1363     # km
 
     # -------------------
     #  Private Constants
     # -------------------
-    __J2000_DATE = dt.datetime(2000, 1, 1, 12, 0, 0)     # J2000 Epoch starts at noon on 1/1/2000
-    __DEG_TO_RAD = pi/180.0
-    __AU_TO_KM = 149597871.0
+    # __J2000_DATE = dt.datetime(2000, 1, 1, 12, 0, 0)     # J2000 Epoch starts at noon on 1/1/2000
+    # __DEG_TO_RAD = pi/180.0
+    # __AU_TO_KM = 149597871.0
 
     # -------------
     #  Constructor
     # -------------
-    def __init__(self, start=None):
+    def __init__(self, satellite, start=None):
         """Initialize the model at start time start.
 
         Inputs:
@@ -58,128 +62,117 @@ class Universe(object):
         # Set universe time
         self.time = start if start is not None else dt.datetime.today()
 
-        # Set sun vector in J2000
-        self.sun_unit, self.sun_mag = self.__update_sun_vector()
-
-        # Set moon vector in J2000
-        self.moon_unit, self.moon_mag = self.__update_moon_vector()
+        # Set celestial objects
+        self.sun = SunModel.SunModel(self.time)
+        self.moon = MoonModel.MoonModel(self.time)
 
         # Initialize force models
         self.force_models = [Gravity()]
 
         # Initialize satellite
-        time_init       = self.time
-        mass_prop       = {'mass': 1500.0, 'cog': vt.Vector([0.5, 0.5, 1.5]), 'moi': vt.Matrix(1375, 0, 0, 0, 1375, 0, 0, 0, 275)}
-        pos_init        = vt.Vector([7141.9897400, 0.000, 0.000])
-        vel_init        = vt.Vector([0.0, 270.96981048, 4306.941804035])
-        acc_init        = sum(map(lambda m: m.force(pos_init, time_init), self.force_models)) / mass_prop['mass']
-        att_init        = vt.Vector([0.0, 0.0, 1.0])
-        ang_vel_init    = vt.Vector([0.0, 0.0, 0.0])
-        self.satellite = SatModel.SatModel(time_init, mass_prop, pos_init, vel_init, acc_init, att_init, ang_vel_init)
+        self.satellite = satellite
 
     # ----------------
     #  Public Methods
     # ----------------
     def update(self, delta_time):
         self.time += delta_time
-        self.sun_unit, self.sun_mag = self.__update_sun_vector()
-        self.moon_unit, self.moon_mag = self.__update_moon_vector()
+
+        self.sun.update(self.time)
+        self.moon.update(self.time)
         self.satellite.update(self.time)
 
     # -----------------
     #  Private Methods
     # -----------------
-    def __update_sun_vector(self):
-        """Calculates the direction and distance to the sun from the Earth
-
-        :rtype: vt.Vector, float
-        :return: Unit sun vector, sun magnitude
-        """
-
-        delta_J2000 = self.time - Universe.__J2000_DATE
-        n_days_J2000 = delta_J2000.days + delta_J2000.seconds/86400
-
-        mean_lon_sun = 280.460 + 0.9856474*n_days_J2000
-        mean_lon_sun %= 360.0
-        mean_lon_sun *= Universe.__DEG_TO_RAD
-
-        mean_anomaly_sun = 357.528 + 0.9856003*n_days_J2000
-        mean_anomaly_sun %= 360.0
-        mean_anomaly_sun *= Universe.__DEG_TO_RAD
-
-        ecliptic_lon_sun = ( mean_lon_sun/Universe.__DEG_TO_RAD +
-                             1.915*sin(mean_anomaly_sun) +
-                             0.020*sin(2.0*mean_anomaly_sun) )
-        ecliptic_lon_sun *= Universe.__DEG_TO_RAD
-
-        dist_earth_to_sun = (1.00014 -
-                             0.01671*cos(mean_anomaly_sun) -
-                             0.00014*cos(2.0*mean_anomaly_sun) )
-        dist_earth_to_sun *= Universe.__AU_TO_KM
-
-        obliquity_ecliptic = 23.439 - 0.0000004*n_days_J2000
-        obliquity_ecliptic *= Universe.__DEG_TO_RAD
-
-        x_J2000_sun = cos(ecliptic_lon_sun)
-        y_J2000_sun = cos(obliquity_ecliptic)*sin(ecliptic_lon_sun)
-        z_J2000_sun = sin(obliquity_ecliptic)*sin(ecliptic_lon_sun)
-
-        return vt.Vector([x_J2000_sun, y_J2000_sun, z_J2000_sun]), dist_earth_to_sun
-
-    def __update_moon_vector(self):
-        """Calculates the direction and distance to the moon from the Earth
-
-        :rtype: vt.Vector, float
-        :return: Unit moon vector, sun magnitude
-        """
-
-        delta_J2000 = self.time - Universe.__J2000_DATE
-        n_days_J2000 = delta_J2000.days + delta_J2000.seconds/86400
-
-        mean_lon_moon = 218.316 + 13.176396*n_days_J2000
-        mean_lon_moon %= 360.0
-        mean_lon_moon *= Universe.__DEG_TO_RAD
-
-        mean_anomaly_moon = 134.963 + 13.064993*n_days_J2000
-        mean_anomaly_moon %= 360.0
-        mean_anomaly_moon *= Universe.__DEG_TO_RAD
-
-        mean_dist_moon = 93.272 + 13.229350*n_days_J2000
-        mean_dist_moon %= 360.0
-        mean_dist_moon *= Universe.__DEG_TO_RAD
-
-        ecliptic_lon_moon = (mean_lon_moon/Universe.__DEG_TO_RAD +
-                             6.289*sin(mean_anomaly_moon) )
-        ecliptic_lon_moon *= Universe.__DEG_TO_RAD
-
-        ecliptic_lat_moon = 5.128*sin(mean_dist_moon)
-        ecliptic_lat_moon *= Universe.__DEG_TO_RAD
-
-        dist_earth_to_moon = (385001.0 -
-                              20905.0*cos(mean_anomaly_moon) )
-
-        obliquity_ecliptic = 23.439 - 0.0000004*n_days_J2000
-        obliquity_ecliptic *= Universe.__DEG_TO_RAD
-
-        x_ec = cos(ecliptic_lat_moon)*cos(ecliptic_lon_moon)
-        y_ec = cos(ecliptic_lat_moon)*sin(ecliptic_lon_moon)
-        z_ec = sin(ecliptic_lat_moon)
-        rect_ec = np.matrix([[x_ec],[y_ec],[z_ec]])
-
-        Q_eq_ec = np.matrix([[1, 0, 0],
-                             [0, cos(obliquity_ecliptic), -sin(obliquity_ecliptic)],
-                             [0, sin(obliquity_ecliptic), cos(obliquity_ecliptic)]])
-
-        rect_eq = Q_eq_ec*rect_ec
-
-        return rect_eq, dist_earth_to_moon
-
-    def __update_orbit(self):
-        p = self.satellite.p
-        v = self.satellite.v
-        a = self.satellite.a
-
-
+    # def __update_sun_vector(self):
+    #     """Calculates the direction and distance to the sun from the Earth
+    #
+    #     :rtype: vt.Vector, float
+    #     :return: Unit sun vector, sun magnitude
+    #     """
+    #
+    #     delta_J2000 = self.time - constant.J2000_DATE
+    #     n_days_J2000 = delta_J2000.days + delta_J2000.seconds/86400
+    #
+    #     mean_lon_sun = 280.460 + 0.9856474*n_days_J2000
+    #     mean_lon_sun %= 360.0
+    #     mean_lon_sun *= constant.DEG_TO_RAD
+    #
+    #     mean_anomaly_sun = 357.528 + 0.9856003*n_days_J2000
+    #     mean_anomaly_sun %= 360.0
+    #     mean_anomaly_sun *= constant.DEG_TO_RAD
+    #
+    #     ecliptic_lon_sun = ( mean_lon_sun/constant.DEG_TO_RAD +
+    #                          1.915*sin(mean_anomaly_sun) +
+    #                          0.020*sin(2.0*mean_anomaly_sun) )
+    #     ecliptic_lon_sun *= constant.DEG_TO_RAD
+    #
+    #     dist_earth_to_sun = (1.00014 -
+    #                          0.01671*cos(mean_anomaly_sun) -
+    #                          0.00014*cos(2.0*mean_anomaly_sun) )
+    #     dist_earth_to_sun *= constant.AU_TO_KM
+    #
+    #     obliquity_ecliptic = 23.439 - 0.0000004*n_days_J2000
+    #     obliquity_ecliptic *= constant.DEG_TO_RAD
+    #
+    #     x_J2000_sun = cos(ecliptic_lon_sun)
+    #     y_J2000_sun = cos(obliquity_ecliptic)*sin(ecliptic_lon_sun)
+    #     z_J2000_sun = sin(obliquity_ecliptic)*sin(ecliptic_lon_sun)
+    #
+    #     return vt.Vector([x_J2000_sun, y_J2000_sun, z_J2000_sun]), dist_earth_to_sun
+    #
+    # def __update_moon_vector(self):
+    #     """Calculates the direction and distance to the moon from the Earth
+    #
+    #     :rtype: vt.Vector, float
+    #     :return: Unit moon vector, sun magnitude
+    #     """
+    #
+    #     delta_J2000 = self.time - constant.J2000_DATE
+    #     n_days_J2000 = delta_J2000.days + delta_J2000.seconds/86400
+    #
+    #     mean_lon_moon = 218.316 + 13.176396*n_days_J2000
+    #     mean_lon_moon %= 360.0
+    #     mean_lon_moon *= constant.DEG_TO_RAD
+    #
+    #     mean_anomaly_moon = 134.963 + 13.064993*n_days_J2000
+    #     mean_anomaly_moon %= 360.0
+    #     mean_anomaly_moon *= constant.DEG_TO_RAD
+    #
+    #     mean_dist_moon = 93.272 + 13.229350*n_days_J2000
+    #     mean_dist_moon %= 360.0
+    #     mean_dist_moon *= constant.DEG_TO_RAD
+    #
+    #     ecliptic_lon_moon = (mean_lon_moon/constant.DEG_TO_RAD +
+    #                          6.289*sin(mean_anomaly_moon) )
+    #     ecliptic_lon_moon *= constant.DEG_TO_RAD
+    #
+    #     ecliptic_lat_moon = 5.128*sin(mean_dist_moon)
+    #     ecliptic_lat_moon *= constant.DEG_TO_RAD
+    #
+    #     dist_earth_to_moon = (385001.0 -
+    #                           20905.0*cos(mean_anomaly_moon) )
+    #
+    #     obliquity_ecliptic = 23.439 - 0.0000004*n_days_J2000
+    #     obliquity_ecliptic *= constant.DEG_TO_RAD
+    #
+    #     x_ec = cos(ecliptic_lat_moon)*cos(ecliptic_lon_moon)
+    #     y_ec = cos(ecliptic_lat_moon)*sin(ecliptic_lon_moon)
+    #     z_ec = sin(ecliptic_lat_moon)
+    #     rect_ec = np.matrix([[x_ec],[y_ec],[z_ec]])
+    #
+    #     Q_eq_ec = np.matrix([[1, 0, 0],
+    #                          [0, cos(obliquity_ecliptic), -sin(obliquity_ecliptic)],
+    #                          [0, sin(obliquity_ecliptic), cos(obliquity_ecliptic)]])
+    #
+    #     rect_eq = Q_eq_ec*rect_ec
+    #
+    #     return rect_eq, dist_earth_to_moon
+    #
+    # def __update_orbit(self):
+    #     p = self.satellite.p
+    #     v = self.satellite.v
 
 
 class Gravity(afm.AbstractForceModel):
@@ -204,14 +197,15 @@ class Gravity(afm.AbstractForceModel):
         r_norm = r_eci.norm()
         r_norm3 = r_norm**3
 
-        return -Universe.MU/r_norm3*r_eci
+        # return -Universe.MU/r_norm3*r_eci
 
-        # ecef = conv.eci_to_ecef(t, r_eci)
-        # f_ecef = Gravity.calculate_force(ecef[0])
-        # return conv.ecef_to_eci(t, f_ecef)[0]
+        ecef = conv.eci_to_ecef(t, r_eci)
+        f_ecef = Gravity.calculate_force(ecef[0])
+        return conv.ecef_to_eci(t, f_ecef)[0]
 
     @classmethod
     def import_coefficients(cls, filename):
+        filename = os.path.join(os.environ.get('SATSIMDIR'), 'model', 'egm96_coeff.dat')
         with open(filename, "r") as fcoeff:
             for line in fcoeff:
                 # EGM96 coefficients in the form of:
@@ -234,7 +228,7 @@ class Gravity(afm.AbstractForceModel):
     def calculate_geopotential(cls, r, phi, theta):
         if len(cls.__COEFFICIENTS) == 0:
             cls.import_coefficients('D:\Users\\tjh97\Dropbox\Workspace\SatelliteSimulator\Model\egm96_coeff.dat')
-        R = Universe.RADIUS_OF_EARTH
+        R = constant.RADIUS_OF_EARTH
         P, P_prime = sp.lpmn(cls.__MODEL_ORDER_N, cls.__MODEL_ORDER_N, sin(theta))
 
         zonal = 0
@@ -285,7 +279,7 @@ class Gravity(afm.AbstractForceModel):
         if len(cls.__COEFFICIENTS) == 0:
             cls.import_coefficients('D:\Users\\tjh97\Dropbox\Workspace\SatelliteSimulator\Model\egm96_coeff.dat')
 
-        R = Universe.RADIUS_OF_EARTH
+        R = constant.RADIUS_OF_EARTH
         P, P_prime = sp.lpmn(cls.__MODEL_ORDER_N, cls.__MODEL_ORDER_N, sin(theta))
 
         tess = 0
@@ -293,8 +287,8 @@ class Gravity(afm.AbstractForceModel):
             for m in range(1, n):
                 C_nm, S_nm = cls.__C[m][n], cls.__S[m][n]
 
-                C_nm_tilde = -C_nm/(Universe.MU*R**n)
-                S_nm_tilde = -S_nm/(Universe.MU*R**n)
+                C_nm_tilde = -C_nm/(constant.MU*R**n)
+                S_nm_tilde = -S_nm/(constant.MU*R**n)
 
                 P_mn = P[m][n]
                 tg = C_nm_tilde*cos(m*phi) + S_nm_tilde*sin(m*phi)
@@ -304,7 +298,7 @@ class Gravity(afm.AbstractForceModel):
                 # tess += (n+1)*P*(C_nm*cos(m*phi) + S_nm*sin(m*phi))/r**(n+2)
         # tess = 0
 
-        return -(Universe.MU/r**2)  # *(1/Universe.MU - tess)
+        return -(constant.MU/r**2)  # *(1/Universe.MU - tess)
 
     @classmethod
     def _calculate_theta_force(cls, r, phi, theta):

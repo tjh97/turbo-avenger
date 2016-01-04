@@ -1,11 +1,8 @@
-__author__ = 'tjh97'
-
 
 import abc
-
-
 import datetime as dt
 import basics.vector_types as vt
+
 
 class AbstractForceModel(object):
     __metaclass__ = abc.ABCMeta
