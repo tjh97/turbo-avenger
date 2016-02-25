@@ -83,13 +83,16 @@ class Matrix(object):
     def __getitem__(self, k):
         return self.value.item(k)
 
+    def __eq__(self, other):
+        return (self.value == other.value).all()
+
     def T(self):
         """Returns the transpose of the matrix
         """
         return Matrix(self.value.T)
 
     def trace(self):
-        return self[0,0] + self[1,1] + self[2,2]
+        return self[0, 0] + self[1, 1] + self[2, 2]
 
     
 class Vector(Matrix):

@@ -9,6 +9,7 @@ import basics.conversions as conv
 import math
 import basics.plotting as plotting
 from mpl_toolkits.mplot3d import Axes3D
+import mayavi.mlab as mlab
 import basics.rkf6 as rkf6
 import basics.vector_types as vt
 import scipy.integrate as spyi
@@ -37,7 +38,7 @@ z_sat = np.array([p_init.z])
 # Initialize the figure
 fig = plt.figure()
 ax = fig.add_subplot(111, projection='3d')
-plotting.add_earth_sphere(ax)
+plotting.add_earth_sphere()
 # ax.plot(x_sat, y_sat, z_sat, label='Orbit')
 # ax.legend()
 
@@ -67,5 +68,5 @@ for i in range(600):
     # ax.draw_artist(points)
     # fig.canvas.blit(ax.bbox)
 
-ax.plot(x_sat, y_sat, z_sat)
-plt.show()
+mlab.plot3d(x_sat, y_sat, z_sat, color=(0, 0, 0), tube_radius=50.0)
+mlab.show()

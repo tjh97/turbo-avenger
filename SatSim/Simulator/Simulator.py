@@ -1,8 +1,8 @@
-'''
+"""
 Created on Apr 21, 2015
 
 @author: tjh97
-'''
+"""
 
 import numpy as np
 import xml.etree.cElementTree as ET
@@ -10,17 +10,17 @@ from Satellite.Satellite import Satellite
 from model.SatModel import SatModel
 
 
-
 class Simulator(object):
-    '''
-    classdocs
-    '''
+    """
 
+    """
 
     def __init__(self, info_file):
-        '''
-        Constructor
-        '''
+        """
+
+        :param info_file:
+        :return:
+        """
         
         # Input variable for Satellite object
         sat_info = dict()
